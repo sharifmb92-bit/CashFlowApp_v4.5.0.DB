@@ -649,7 +649,6 @@
                 }
                 rtdb = firebase.database();
                 
-                // Autenticación Anónima de Firebase
                 firebase.auth().signInAnonymously()
                     .then((userCredential) => {
                         usuarioUID = userCredential.user.uid;
@@ -1200,8 +1199,18 @@
             const inicioInput = document.getElementById('apl-inicio');
             if (!inicioInput.value) {
                 const hoy = new Date();
-                inicioInput.value = hoy.toISOString().split('T')[0];
+                const yyyy = hoy.getFullYear();
+                const mm = String(hoy.getMonth() + 1).padStart(2, '0');
+                const dd = String(hoy.getDate()).padStart(2, '0');
+                inicioInput.value = `${yyyy}-${mm}-${dd}`;
             }
+        }
+
+        function parseFechaUTC(strFecha) {
+            if (!strFecha) return null;
+            const partes = strFecha.split('-');
+            if (partes.length !== 3) return new Date(strFecha);
+            return new Date(parseInt(partes[0], 10), parseInt(partes[1], 10) - 1, parseInt(partes[2], 10), 0, 0, 0);
         }
 
         function calcularCuotaYFechas() {
@@ -1212,12 +1221,16 @@
             const tipoCobro = document.getElementById('apl-tipo-cobro').value;
 
             if (inicioStr) {
-                const inicio = new Date(inicioStr);
-                if (!isNaN(inicio.getTime())) {
+                const inicio = parseFechaUTC(inicioStr);
+                if (inicio && !isNaN(inicio.getTime())) {
                     const fin = new Date(inicio);
                     const ajuste = (tipoCobro === 'siguiente') ? 1 : 0;
                     fin.setMonth(fin.getMonth() + mesesNum + ajuste);
-                    document.getElementById('apl-fin').value = fin.toISOString().split('T')[0];
+                    
+                    const yyyy = fin.getFullYear();
+                    const mm = String(fin.getMonth() + 1).padStart(2, '0');
+                    const dd = String(fin.getDate()).padStart(2, '0');
+                    document.getElementById('apl-fin').value = `${yyyy}-${mm}-${dd}`;
                 }
             }
 
@@ -1233,10 +1246,10 @@
             const finStr = document.getElementById('apl-fin').value;
 
             if (total > 0 && inicioStr && finStr) {
-                const inicio = new Date(inicioStr);
-                const fin = new Date(finStr);
+                const inicio = parseFechaUTC(inicioStr);
+                const fin = parseFechaUTC(finStr);
 
-                if (!isNaN(inicio.getTime()) && !isNaN(fin.getTime()) && fin > inicio) {
+                if (inicio && fin && !isNaN(inicio.getTime()) && !isNaN(fin.getTime()) && fin > inicio) {
                     let mesesCalc = (fin.getFullYear() - inicio.getFullYear()) * 12 + (fin.getMonth() - inicio.getMonth());
                     if (mesesCalc > 0) {
                         const selectMeses = document.getElementById('apl-meses-num');
@@ -1292,7 +1305,6 @@
                 }
             });
 
-            // Tarjetas restantes sin sobre asignado
             ['ayuda', 'ninos', 'internet', 'manual'].forEach(key => {
                 const gastado = calcularGastadoPorCategoria(key);
                 const subEl = document.getElementById(`sub-btn-${key}`);
@@ -1313,7 +1325,6 @@
             let listaProximos = [];
             let sumaTotal7d = 0;
 
-            // Recibos Fijos próximos 7 días
             gastosFijos.forEach(f => {
                 let fechaCobroFijo = new Date(hoy.getFullYear(), hoy.getMonth(), f.dia);
                 if (f.dia < diaHoy) {
@@ -1330,11 +1341,10 @@
                 }
             });
 
-            // Aplazados próximos 7 días
             aplazados.forEach(a => {
                 if (a.inicio && (a.cuotasPagadas || 0) < a.meses) {
-                    const inicio = new Date(a.inicio);
-                    if (!isNaN(inicio.getTime())) {
+                    const inicio = parseFechaUTC(a.inicio);
+                    if (inicio && !isNaN(inicio.getTime())) {
                         const diaCobroApl = inicio.getDate();
                         let fechaCobroApl = new Date(hoy.getFullYear(), hoy.getMonth(), diaCobroApl);
                         if (diaCobroApl < diaHoy) {
@@ -1407,38 +1417,48 @@
             for (let item of aplazados) {
                 if (!item.inicio) continue;
                 
-                const inicio = new Date(item.inicio);
-                if (isNaN(inicio.getTime())) continue;
-                inicio.setHours(0,0,0,0);
+                const inicio = parseFechaUTC(item.inicio);
+                if (!inicio || isNaN(inicio.getTime())) continue;
                 
                 let mesesTotales = item.meses || 1;
                 if (!item.cuotasPagadasFechas) item.cuotasPagadasFechas = [];
 
+                let cuotasAutomaticasCobradas = 0;
+
                 for (let i = 0; i < mesesTotales; i++) {
-                    let fechaCobro = new Date(inicio);
+                    let fechaCobro = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate(), 0, 0, 0);
+                    
                     if (item.tipoCobro === 'siguiente') {
                         fechaCobro.setMonth(fechaCobro.getMonth() + i + 1);
                     } else {
                         fechaCobro.setMonth(fechaCobro.getMonth() + i);
                     }
 
-                    const fechaISO = fechaCobro.toISOString().split('T')[0];
+                    const yyyy = fechaCobro.getFullYear();
+                    const mm = String(fechaCobro.getMonth() + 1).padStart(2, '0');
+                    const claveMesAño = `${yyyy}-${mm}`;
 
-                    if (hoy >= fechaCobro && !item.cuotasPagadasFechas.includes(fechaISO)) {
-                        item.cuotasPagadasFechas.push(fechaISO);
-                        item.cuotasPagadas = item.cuotasPagadasFechas.length;
+                    if (hoy >= fechaCobro) {
+                        cuotasAutomaticasCobradas++;
 
-                        historialAplazados.unshift({
-                            lugar: item.lugar,
-                            producto: item.producto,
-                            entidad: item.entidad || 'Plazo',
-                            cuota: item.cuota,
-                            fecha: fechaISO,
-                            timestamp: new Date().getTime()
-                        });
-                        cambios = true;
+                        if (!item.cuotasPagadasFechas.includes(claveMesAño)) {
+                            item.cuotasPagadasFechas.push(claveMesAño);
+
+                            const fechaISOText = fechaCobro.toISOString().split('T')[0];
+                            historialAplazados.unshift({
+                                lugar: item.lugar,
+                                producto: item.producto,
+                                entidad: item.entidad || 'Plazo',
+                                cuota: item.cuota,
+                                fecha: fechaISOText,
+                                timestamp: new Date().getTime()
+                            });
+                            cambios = true;
+                        }
                     }
                 }
+
+                item.cuotasPagadas = Math.max(cuotasAutomaticasCobradas, item.cuotasPagadasFechas.length);
             }
 
             if (cambios) {
@@ -1699,7 +1719,7 @@
                 const esFinalizado = cuotasPagadas >= item.meses;
                 
                 sumaTotalCompras += item.total;
-                const pagado = cuotasPagadas * item.cuota;
+                const pagado = Math.min(item.total, cuotasPagadas * item.cuota);
                 const pendiente = Math.max(0, item.total - pagado);
                 sumaPendienteGlobal += pendiente;
                 
@@ -1973,12 +1993,17 @@
             
             if (accion) {
                 item.cuotasPagadas = (item.cuotasPagadas || 0) + 1;
+                const hoy = new Date();
+                const claveManual = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-manual-${Date.now()}`;
+                if (!item.cuotasPagadasFechas) item.cuotasPagadasFechas = [];
+                item.cuotasPagadasFechas.push(claveManual);
+
                 historialAplazados.unshift({
                     lugar: item.lugar,
                     producto: item.producto,
                     entidad: item.entidad || 'Plazo',
                     cuota: item.cuota,
-                    fecha: new Date().toISOString().split('T')[0] + ' (Manual)',
+                    fecha: hoy.toISOString().split('T')[0] + ' (Manual)',
                     timestamp: new Date().getTime()
                 });
             } else {
