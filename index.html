@@ -52,7 +52,6 @@
         @keyframes pulse-orange { 0% { box-shadow: 0 0 4px rgba(230, 126, 34, 0.2); } 100% { box-shadow: 0 0 15px rgba(230, 126, 34, 0.6); } }
         @keyframes flash-red { 0% { background: var(--card); } 100% { background: #3a1c1c; box-shadow: 0 0 20px rgba(231, 76, 60, 0.7); } }
 
-        /* TARJETA PRÓXIMOS VENCIMIENTOS */
         .card-vencimientos-7d { background: var(--card); border-radius: 12px; padding: 12px 15px; margin-bottom: 12px; border: 1px solid var(--yellow); font-size: 0.82em; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
         .venc-header { display: flex; justify-content: space-between; align-items: center; font-weight: bold; color: var(--yellow); margin-bottom: 6px; }
         .venc-item { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px dashed var(--border-color); color: var(--text); }
@@ -1775,7 +1774,7 @@
                     const tr = tbodyApl.insertRow();
                     tr.innerHTML = `
                         <td style="font-size:0.8em; color:var(--text);">${h.fecha} | ${h.lugar} (${h.producto})</td>
-                        <td style="font-size:0.8em; text-align:right; font-weight:bold; color:var(--purple);">-${h.cuota.toFixed(2)} €</td>
+                        <td style="font-size:0.8em; text-align:right; font-weight:bold; color:var(--purple);">${h.cuota ? '-' + h.cuota.toFixed(2) : '0.00'} €</td>
                     `;
                 });
             }
